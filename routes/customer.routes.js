@@ -5,13 +5,17 @@ const router = express.Router()
 
 // GET all customers
 router.get("/", (req, res) => {
-  db.query("SELECT * FROM Customer", (err, results) => {
-    if (err) return res.status(500).json(err)
-    res.json(results)
+  const sql = "SELECT * FROM Customer"
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      res.status(500).json(err)
+    } else {
+      res.json(results)
+    }
   })
 })
-
-// POST add customer
+// ADD new customer
 router.post("/", (req, res) => {
   const { name, customer_type, address, phone, email } = req.body
 
@@ -23,11 +27,55 @@ router.post("/", (req, res) => {
   db.query(
     sql,
     [name, customer_type, address, phone, email],
-    (err) => {
-      if (err) return res.status(500).json(err)
-      res.json({ message: "Customer added successfully" })
+    (err, result) => {
+      if (err) {
+        res.status(500).json(err)
+      } else {
+        res.json({ message: "Customer added successfully" })
+      }
     }
   )
 })
+
+// UPDATE customer
+router.put("/:id", (req, res) => {
+  const { name, customer_type, address, phone, email } = req.body
+  const { id } = req.params
+
+  const sql = `
+    UPDATE Customer
+    SET name=?, customer_type=?, address=?, phone=?, email=?
+    WHERE customer_id=?
+  `
+
+  db.query(
+    sql,
+    [name, customer_type, address, phone, email, id],
+    (err) => {
+      if (err) {
+        res.status(500).json(err)
+      } else {
+        res.json({ message: "Customer updated successfully" })
+      }
+    }
+  )
+})
+
+// DELETE customer
+router.delete("/:id", (req, res) => {
+  const { id } = req.params
+
+  const sql = "DELETE FROM Customer WHERE customer_id=?"
+
+  db.query(sql, [id], (err) => {
+    if (err) {
+      res.status(500).json(err)
+    } else {
+      res.json({ message: "Customer deleted successfully" })
+    }
+  })
+})
+
+
 
 export default router

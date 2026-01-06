@@ -4,15 +4,16 @@ import customerRoutes from "./routes/customer.routes.js"
 
 const app = express()
 
+// Enable CORS
 app.use(cors())
+
+// Parse JSON
 app.use(express.json())
 
+// Routes
 app.use("/api/customers", customerRoutes)
-app.get("/", (req, res) => {
-  res.send("API is running")
-})
 
-
-app.listen(5000, () => {
-  console.log("Backend running on http://localhost:5000")
+const PORT = 5000
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
 })

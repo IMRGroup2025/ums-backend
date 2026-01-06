@@ -1,18 +1,13 @@
-import mysql from "mysql2"
+import mysql from "mysql2";
 
-const db = mysql.createConnection({
+const db = mysql.createPool({
   host: "localhost",
   user: "root",
-  password: "senumi@2005",
-  database: "ums_db"
-})
+  password: "YOUR_PASSWORD",
+  database: "ums_db",
+  waitForConnections: true,
+  connectionLimit: 10,
+});
 
-db.connect(err => {
-  if (err) {
-    console.error("MySQL connection failed:", err)
-  } else {
-    console.log("MySQL Connected")
-  }
-})
+export default db;
 
-export default db
