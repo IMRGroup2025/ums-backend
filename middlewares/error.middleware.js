@@ -1,8 +1,14 @@
-// Generic error handler middleware placeholder.
-const errorHandler = (err, req, res, next) => {
-  const status = err.status || 500;
-  const message = err.message || 'Unexpected error';
-  res.status(status).json({ message });
-};
+export const errorHandler = (err, req, res, next) => {
+  console.error(err);
 
-module.exports = errorHandler;
+  if (err.code === "ER_ROW_IS_REFERENCED_2") {
+    return res.status(409).json({
+      message:
+        "Cannot delete record because related data exists",
+    });
+  }
+
+  res.status(500).json({
+    message: "Internal Server Error",
+  });
+};
