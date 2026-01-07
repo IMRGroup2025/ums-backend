@@ -25,15 +25,22 @@ router.get("/", (req, res) => {
 
 // ADD meter
 router.post("/", (req, res) => {
-  const { meter_number, customer_id, utility_id } = req.body
+  const { meter_number, customer_id, utility_id, status = "Active" } = req.body
+
+  if (!meter_number || !customer_id || !utility_id) {
+    return res.status(400).json({ message: "meter_number, customer_id and utility_id are required" })
+  }
 
   const sql = `
-    INSERT INTO Meter (meter_number, customer_id, utility_id)
-    VALUES (?, ?, ?)
+    INSERT INTO Meter (meter_number, customer_id, utility_id, status)
+    VALUES (?, ?, ?, ?)
   `
 
-  db.query(sql, [meter_number, customer_id, utility_id], (err) => {
-    if (err) return res.status(500).json(err)
+  db.query(sql, [meter_number, customer_id, utility_id, status], (err) => {
+    if (err) {
+      console.error("Failed to add meter", err)
+      return res.status(500).json({ message: "Failed to add meter", error: err })
+    }
     res.json({ message: "Meter added successfully" })
   })
 })

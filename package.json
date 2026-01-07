@@ -20,10 +20,12 @@
   },
   "homepage": "https://github.com/IMRGroup2025/ums-backend#readme",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.16.0",
     "pdfkit": "^0.17.2"
   },
