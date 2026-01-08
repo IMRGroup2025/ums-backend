@@ -14,11 +14,9 @@ router.get("/", (req, res) => {
       mr.previous_reading,
       mr.current_reading,
       mr.consumption,
-      m.meter_number,
-      c.name AS customer_name
+      m.meter_number
     FROM MeterReading mr
     JOIN Meter m ON mr.meter_id = m.meter_id
-    JOIN Customer c ON m.customer_id = c.customer_id
     ORDER BY mr.reading_date DESC
   `
 
@@ -29,65 +27,60 @@ router.get("/", (req, res) => {
 })
 
 /* =========================
-   ADD new meter reading
+   ADD meter reading
 ========================= */
 router.post("/", (req, res) => {
-  const {
-    meter_id,
-    meterId,
-    meter,
-    reading_date,
-    readingDate,
-    date,
-    previous_reading,
-    previousReading,
-    current_reading,
-    currentReading,
-    reading
-  } = req.body
+  const { meter_id, current_reading, reading_date } = req.body
 
-  const resolvedMeterId = meter_id ?? meterId ?? (typeof meter === "object" ? meter?.id ?? meter?.value : meter)
-  const resolvedReadingDate = reading_date ?? readingDate ?? date
-  const resolvedCurrentReading = current_reading ?? currentReading ?? reading
-  const resolvedPreviousReading = previous_reading ?? previousReading ?? 0
-
-  if (
-    !resolvedMeterId ||
-    !resolvedReadingDate ||
-    resolvedCurrentReading === undefined ||
-    resolvedCurrentReading === null
-  ) {
+  if (!meter_id || !current_reading || !reading_date) {
     return res.status(400).json({ message: "Missing required fields" })
   }
 
-  const meterIdNumber = Number(resolvedMeterId)
-  const prevReadingNumber = Number(resolvedPreviousReading) || 0
-  const currentReadingNumber = Number(resolvedCurrentReading)
+  const meterId = Number(meter_id)
+  const current = Number(current_reading)
 
-  if (Number.isNaN(meterIdNumber) || Number.isNaN(currentReadingNumber)) {
-    return res.status(400).json({ message: "Invalid meter or reading value" })
+  if (Number.isNaN(meterId) || Number.isNaN(current)) {
+    return res.status(400).json({ message: "Invalid values" })
   }
 
-  const consumption = currentReadingNumber - prevReadingNumber
-
-  const sql = `
-    INSERT INTO MeterReading 
-    (meter_id, reading_date, previous_reading, current_reading, consumption)
-    VALUES (?, ?, ?, ?, ?)
+  /* Get previous reading */
+  const prevSql = `
+    SELECT current_reading 
+    FROM MeterReading
+    WHERE meter_id = ?
+    ORDER BY reading_date DESC
+    LIMIT 1
   `
 
-  db.query(
-    sql,
-    [meterIdNumber, resolvedReadingDate, prevReadingNumber, currentReadingNumber, consumption],
-    (err, result) => {
-      if (err) return res.status(500).json(err)
+  db.query(prevSql, [meterId], (err, prevRows) => {
+    if (err) return res.status(500).json(err)
 
-      res.json({
-        message: "Meter reading added successfully",
-        reading_id: result.insertId
-      })
+    const previous = prevRows.length ? prevRows[0].current_reading : 0
+    const consumption = current - previous
+
+    if (consumption < 0) {
+      return res.status(400).json({ message: "Current reading cannot be less than previous" })
     }
-  )
+
+    const insertSql = `
+      INSERT INTO MeterReading
+      (meter_id, reading_date, previous_reading, current_reading, consumption)
+      VALUES (?, ?, ?, ?, ?)
+    `
+
+    db.query(
+      insertSql,
+      [meterId, reading_date, previous, current, consumption],
+      (err, result) => {
+        if (err) return res.status(500).json(err)
+
+        res.json({
+          message: "Meter reading added successfully",
+          reading_id: result.insertId
+        })
+      }
+    )
+  })
 })
 
 export default router

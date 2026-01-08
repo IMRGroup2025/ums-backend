@@ -7,6 +7,7 @@ import billRoutes from "./routes/bill.routes.js"
 import dashboardRoutes from "./routes/dashboard.routes.js"
 import exportRoutes from "./routes/export.routes.js"
 import paymentRoutes from "./routes/payment.routes.js"
+import userRoutes from "./routes/user.routes.js";
 
 
 const app = express();
@@ -19,6 +20,9 @@ app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/export", exportRoutes)
 app.use("/api/payments", paymentRoutes)
 app.use("/api/meter-readings", meterReadingRoutes)
+app.use("/api/meters", meterRoutes)
+app.use("/api/customers", customerRoutes);  
+app.use("/api/users", userRoutes);
 
 
 
@@ -28,8 +32,7 @@ app.get("/", (req, res) => {
 });
 
 
-app.use("/api/customers", customerRoutes);
-app.use("/api/meters", meterRoutes)
+
 
 const PORT = 5000;
 app.listen(PORT, () => {
