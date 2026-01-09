@@ -1,5 +1,5 @@
 -- Seed data for Utility Management System
--- Run with: mysql -u <user> -p ums_db < seeds/sample-data.sql
+-- Run with: mysql -u <user> -p ums_dbase < seeds/sample-data.sql
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -14,14 +14,25 @@ CREATE TABLE IF NOT EXISTS TariffPlan (
   FOREIGN KEY (utility_id) REFERENCES Utility(utility_id)
 );
 
-CREATE TABLE IF NOT EXISTS Complaint (
+CREATE TABLE IF NOT EXISTS Complaints (
   complaint_id INT AUTO_INCREMENT PRIMARY KEY,
   customer_id INT NOT NULL,
   subject VARCHAR(150) NOT NULL,
-  details TEXT,
-  status ENUM('OPEN','IN_PROGRESS','RESOLVED') DEFAULT 'OPEN',
+  description TEXT,
+  priority ENUM('Low','Medium','High') DEFAULT 'Medium',
+  status ENUM('Open','In Progress','Resolved','Closed') DEFAULT 'Open',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES Customer(customer_id)
+);
+
+CREATE TABLE IF NOT EXISTS Payment (
+  payment_id INT AUTO_INCREMENT PRIMARY KEY,
+  bill_id INT NOT NULL,
+  payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  amount_paid DECIMAL(12,2) NOT NULL,
+  payment_method ENUM('CASH','CARD','BANK_TRANSFER','ONLINE','CHEQUE') DEFAULT 'CARD',
+  FOREIGN KEY (bill_id) REFERENCES Bill(bill_id)
 );
 
 -- Clean tables so IDs start from 1 (order matters due to FK constraints)
@@ -29,7 +40,7 @@ TRUNCATE TABLE Payment;
 TRUNCATE TABLE Bill;
 TRUNCATE TABLE MeterReading;
 TRUNCATE TABLE Meter;
-TRUNCATE TABLE Complaint;
+TRUNCATE TABLE Complaints;
 TRUNCATE TABLE TariffPlan;
 TRUNCATE TABLE Customer;
 TRUNCATE TABLE Utility;
@@ -83,11 +94,11 @@ VALUES
   (4, 3, 'Fiber 100 Mbps', 1500.00, 5.50, 'Fixed broadband plan');
 
 -- Complaints -------------------------------------------------------------
-INSERT INTO Complaint (complaint_id, customer_id, subject, details, status, created_at)
+INSERT INTO Complaints (complaint_id, customer_id, subject, description, priority, status, created_at, updated_at)
 VALUES
-  (1, 1, 'Voltage fluctuation', 'Experiencing frequent voltage dips in the evenings.', 'IN_PROGRESS', '2026-01-03 09:30:00'),
-  (2, 2, 'Meter reading mismatch', 'December bill shows higher consumption than the portal.', 'OPEN', '2026-01-04 11:05:00'),
-  (3, 3, 'Slow internet', 'Fiber connection drops below 20 Mbps during peak hours.', 'RESOLVED', '2026-01-02 15:42:00');
+  (1, 1, 'Voltage fluctuation', 'Experiencing frequent voltage dips in the evenings.', 'High', 'In Progress', '2026-01-03 09:30:00', '2026-01-03 09:30:00'),
+  (2, 2, 'Meter reading mismatch', 'December bill shows higher consumption than the portal.', 'Medium', 'Open', '2026-01-04 11:05:00', '2026-01-04 11:05:00'),
+  (3, 3, 'Slow internet', 'Fiber connection drops below 20 Mbps during peak hours.', 'High', 'Resolved', '2026-01-02 15:42:00', '2026-01-02 15:42:00');
 
 -- Optional upcoming month bills using auto-generator reference
 INSERT INTO Bill (meter_id, billing_month, consumption, amount, status)

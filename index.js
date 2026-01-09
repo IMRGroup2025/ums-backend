@@ -8,6 +8,9 @@ import dashboardRoutes from "./routes/dashboard.routes.js"
 import exportRoutes from "./routes/export.routes.js"
 import paymentRoutes from "./routes/payment.routes.js"
 import userRoutes from "./routes/user.routes.js";
+import tariffPlansRoutes from "./routes/tariffPlans.routes.js";
+import complaintRoutes from "./routes/complaints.routes.js";
+import utilityRoutes from "./routes/utility.routes.js";
 
 
 const app = express();
@@ -23,6 +26,10 @@ app.use("/api/meter-readings", meterReadingRoutes)
 app.use("/api/meters", meterRoutes)
 app.use("/api/customers", customerRoutes);  
 app.use("/api/users", userRoutes);
+app.use("/api/tariff-plans", tariffPlansRoutes);
+app.use("/api/complaints", complaintRoutes);
+app.use("/api/utilities", utilityRoutes);
+
 
 
 

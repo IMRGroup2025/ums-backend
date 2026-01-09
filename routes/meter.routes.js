@@ -1,58 +1,18 @@
-import express from "express"
-import db from "../db.js"
+import express from "express";
+import {
+  getMeters,
+  addMeter,
+  updateMeter,
+  deleteMeter,
+  getUtilities,
+} from "../controllers/meter.controller.js";
 
-const router = express.Router()
+const router = express.Router();
 
-// GET all meters (with customer + utility)
-router.get("/", (req, res) => {
-  const sql = `
-    SELECT 
-      m.meter_id,
-      m.meter_number,
-      m.status,
-      c.name AS customer_name,
-      u.utility_name
-    FROM Meter m
-    JOIN Customer c ON m.customer_id = c.customer_id
-    JOIN Utility u ON m.utility_id = u.utility_id
-  `
+router.get("/utilities", getUtilities);
+router.get("/", getMeters);
+router.post("/", addMeter);
+router.put("/:id", updateMeter);
+router.delete("/:id", deleteMeter);
 
-  db.query(sql, (err, results) => {
-    if (err) return res.status(500).json(err)
-    res.json(results)
-  })
-})
-
-// ADD meter
-router.post("/", (req, res) => {
-  const { meter_number, customer_id, utility_id, status = "Active" } = req.body
-
-  if (!meter_number || !customer_id || !utility_id) {
-    return res.status(400).json({ message: "meter_number, customer_id and utility_id are required" })
-  }
-
-  const sql = `
-    INSERT INTO Meter (meter_number, customer_id, utility_id, status)
-    VALUES (?, ?, ?, ?)
-  `
-
-  db.query(sql, [meter_number, customer_id, utility_id, status], (err) => {
-    if (err) {
-      console.error("Failed to add meter", err)
-      return res.status(500).json({ message: "Failed to add meter", error: err })
-    }
-    res.json({ message: "Meter added successfully" })
-  })
-})
-
-// DELETE meter
-router.delete("/:id", (req, res) => {
-  const sql = "DELETE FROM Meter WHERE meter_id=?"
-
-  db.query(sql, [req.params.id], (err) => {
-    if (err) return res.status(500).json(err)
-    res.json({ message: "Meter deleted successfully" })
-  })
-})
-
-export default router
+export default router;
