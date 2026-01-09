@@ -6,7 +6,7 @@ import meterReadingRoutes from "./routes/meterReading.routes.js"
 import billRoutes from "./routes/bill.routes.js"
 import dashboardRoutes from "./routes/dashboard.routes.js"
 import exportRoutes from "./routes/export.routes.js"
-import paymentRoutes from "./routes/payment.routes.js"
+import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import tariffPlansRoutes from "./routes/tariffPlans.routes.js";
 import complaintRoutes from "./routes/complaints.routes.js";
@@ -21,7 +21,7 @@ app.use(express.json());
 app.use("/api/bills", billRoutes);
 app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/export", exportRoutes)
-app.use("/api/payments", paymentRoutes)
+app.use("/api/auth", authRoutes);
 app.use("/api/meter-readings", meterReadingRoutes)
 app.use("/api/meters", meterRoutes)
 app.use("/api/customers", customerRoutes);  

@@ -45,65 +45,71 @@ export const getMeters = (req, res) => {
 };
 
 /* =========================
-   ADD METER (ONE PER CUSTOMER)
+   ADD METER
 ========================= */
 export const addMeter = (req, res) => {
-  const { meter_number, installation_date, status, customer_id, utility_id } =
-    req.body;
+  const {
+    meter_number,
+    installation_date,
+    status,
+    customer_id,
+    utility_id,
+  } = req.body;
 
-  if (!customer_id || !utility_id) {
+  console.log("ADD METER REQUEST:", req.body);
+
+  if (!customer_id) {
     return res.status(400).json({
-      message: "Customer and Utility are required",
+      message: "Customer is required",
     });
   }
 
-  // 🔒 Enforce ONE meter per customer
-  const checkSql = `SELECT meter_id FROM Meter WHERE customer_id = ?`;
+  if (!meter_number) {
+    return res.status(400).json({
+      message: "Meter number is required",
+    });
+  }
 
-  db.query(checkSql, [customer_id], (err, rows) => {
-    if (err) {
-      console.error("CHECK METER ERROR:", err);
-      return res.status(500).json({ message: "Validation failed" });
-    }
+  if (!utility_id) {
+    return res.status(400).json({
+      message: "Utility is required",
+    });
+  }
 
-    if (rows.length > 0) {
-      return res.status(409).json({
-        message: "This customer already has a meter",
-      });
-    }
+  const sql = `
+    INSERT INTO Meter
+    (meter_number, installation_date, status, customer_id, utility_id)
+    VALUES (?, ?, ?, ?, ?)
+  `;
 
-    const insertSql = `
-      INSERT INTO Meter
-      (meter_number, installation_date, status, customer_id, utility_id)
-      VALUES (?, ?, ?, ?, ?)
-    `;
-
-    db.query(
-      insertSql,
-      [
-        meter_number || null,
-        installation_date || null,
-        status || "Active",
-        customer_id,
-        utility_id,
-      ],
-      (err, result) => {
-        if (err) {
-          console.error("ADD METER ERROR:", err);
-          return res.status(500).json({ message: "Failed to add meter" });
-        }
-
-        res.status(201).json({
-          message: "Meter added successfully",
-          meter_id: result.insertId,
+  db.query(
+    sql,
+    [
+      meter_number,
+      installation_date || null,
+      status || "Active",
+      customer_id,
+      utility_id,
+    ],
+    (err, result) => {
+      if (err) {
+        console.error("ADD METER ERROR:", err);
+        return res.status(500).json({ 
+          message: "Failed to add meter",
+          error: err.message 
         });
       }
-    );
-  });
+
+      res.status(201).json({
+        message: "Meter added successfully",
+        meter_id: result.insertId,
+      });
+    }
+  );
 };
 
 /* =========================
-   UPDATE METER STATUS
+   UPDATE METER
 ========================= */
 export const updateMeter = (req, res) => {
   const { id } = req.params;
@@ -148,5 +154,80 @@ export const deleteMeter = (req, res) => {
     }
 
     res.status(200).json({ message: "Meter deleted successfully" });
+  });
+};
+
+/* =========================
+   ADD METER READING
+========================= */
+export const addMeterReading = (req, res) => {
+  const { meter_id, current_reading, reading_date } = req.body;
+
+  // 1. Get previous reading
+  const prevSql = `
+    SELECT current_reading
+    FROM MeterReading
+    WHERE meter_id = ?
+    ORDER BY reading_date DESC
+    LIMIT 1
+  `;
+
+  db.query(prevSql, [meter_id], (err, rows) => {
+    if (err) return res.status(500).json(err);
+
+    const previous = rows.length ? rows[0].current_reading : 0;
+    const consumption = current_reading - previous;
+
+    if (consumption < 0) {
+      return res.status(400).json({ message: "Invalid reading" });
+    }
+
+    // 2. Insert reading
+    const insertReading = `
+      INSERT INTO MeterReading
+      (meter_id, reading_date, previous_reading, current_reading, consumption)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+
+    db.query(
+      insertReading,
+      [meter_id, reading_date, previous, current_reading, consumption],
+      (err) => {
+        if (err) return res.status(500).json(err);
+
+        // 3. Get tariff rate
+        const tariffSql = `
+          SELECT tp.rate
+          FROM Meter m
+          JOIN Tariff_Plan tp ON m.utility_id = tp.utility
+          WHERE m.meter_id = ?
+          LIMIT 1
+        `;
+
+        db.query(tariffSql, [meter_id], (err, rateRows) => {
+          if (err) return res.status(500).json(err);
+
+          const rate = Number(rateRows[0]?.rate || 10);
+          const amount = consumption * rate;
+          const month = reading_date.slice(0, 7);
+
+          const billSql = `
+            INSERT INTO Bill
+            (meter_id, billing_month, consumption, amount, status)
+            VALUES (?, ?, ?, ?, 'UNPAID')
+          `;
+
+          db.query(
+            billSql,
+            [meter_id, month, consumption, amount],
+            (err) => {
+              if (err) return res.status(500).json(err);
+
+              res.json({ message: "Reading + Bill created" });
+            }
+          );
+        });
+      }
+    );
   });
 };
