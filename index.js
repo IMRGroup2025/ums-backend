@@ -13,10 +13,9 @@ import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import tariffPlansRoutes from "./routes/tariffPlans.routes.js";
 import complaintRoutes from "./routes/complaints.routes.js";
-import paymentRoutes from "./routes/payment.routes.js"; 
+import paymentRoutes from "./routes/payment.routes.js";
 import utilityRoutes from "./routes/utility.routes.js";
-import { authenticate } from "./middlewares/authenticate.middleware.js";
-import { authorize } from "./middlewares/authorize.middleware.js";
+import relationshipsRoutes from "./routes/relationships.routes.js";
 
 dotenv.config();
 
@@ -43,9 +42,10 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/tariff-plans", tariffPlansRoutes);
 app.use("/api/utilities", utilityRoutes);
-app.use("/api/payments", paymentRoutes);
-
-
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/export", exportRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/relationships", relationshipsRoutes);
 
 
 

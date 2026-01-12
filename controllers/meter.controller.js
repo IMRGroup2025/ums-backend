@@ -44,6 +44,43 @@ export const getMeters = (req, res) => {
   });
 };
 
+export const getMetersGrouped = (req, res) => {
+  const sql = `
+    SELECT
+      m.meter_id,
+      m.meter_number,
+      m.installation_date,
+      m.status,
+      c.customer_id,
+      c.name AS customer_name,
+      u.utility_id,
+      UPPER(u.utility_name) AS utility_name
+    FROM Meter m
+    JOIN Customer c ON m.customer_id = c.customer_id
+    JOIN Utility u ON m.utility_id = u.utility_id
+    ORDER BY u.utility_name, m.meter_id DESC
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("GET GROUPED METERS ERROR:", err);
+      return res
+        .status(500)
+        .json({ message: "Failed to fetch grouped meter data" });
+    }
+
+    const grouped = results.reduce((acc, meter) => {
+      if (!acc[meter.utility_name]) {
+        acc[meter.utility_name] = [];
+      }
+      acc[meter.utility_name].push(meter);
+      return acc;
+    }, {});
+
+    res.status(200).json(grouped);
+  });
+};
+
 /* =========================
    ADD METER
 ========================= */
@@ -76,36 +113,74 @@ export const addMeter = (req, res) => {
     });
   }
 
-  const sql = `
-    INSERT INTO Meter
-    (meter_number, installation_date, status, customer_id, utility_id)
-    VALUES (?, ?, ?, ?, ?)
+  const existsSql = `
+    SELECT meter_id
+    FROM Meter
+    WHERE customer_id = ? AND utility_id = ?
+    LIMIT 1
   `;
 
-  db.query(
-    sql,
-    [
-      meter_number,
-      installation_date || null,
-      status || "Active",
-      customer_id,
-      utility_id,
-    ],
-    (err, result) => {
-      if (err) {
-        console.error("ADD METER ERROR:", err);
-        return res.status(500).json({ 
-          message: "Failed to add meter",
-          error: err.message 
-        });
-      }
+  db.query(existsSql, [customer_id, utility_id], (existErr, rows) => {
+    if (existErr) {
+      console.error("CHECK METER EXISTS ERROR:", existErr);
+      return res.status(500).json({ message: "Failed to validate meter uniqueness" });
+    }
 
-      res.status(201).json({
-        message: "Meter added successfully",
-        meter_id: result.insertId,
+    if (rows.length) {
+      return res.status(409).json({
+        message: "Customer already has a meter for this utility",
       });
     }
-  );
+
+    const insertSql = `
+      INSERT INTO Meter
+      (meter_number, installation_date, status, customer_id, utility_id)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+
+    // Normalize date to YYYY-MM-DD for MySQL
+    let normalizedDate = null;
+    if (installation_date) {
+      const d = new Date(installation_date);
+      if (!Number.isNaN(d.getTime())) {
+        normalizedDate = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      }
+    }
+
+    db.query(
+      insertSql,
+      [
+        meter_number,
+        normalizedDate,
+        status || "Active",
+        customer_id,
+        utility_id,
+      ],
+      (err, result) => {
+        if (err) {
+          console.error("ADD METER ERROR:", err);
+          if (err.code === "ER_DUP_ENTRY") {
+            const msg = /uq_customer_utility/i.test(err.message)
+              ? "Customer already has a meter for this utility"
+              : "Meter number already exists";
+            return res.status(409).json({ message: msg });
+          }
+          if (err.code === "ER_NO_REFERENCED_ROW_2") {
+            return res.status(400).json({ message: "Invalid customer or utility reference" });
+          }
+          return res.status(500).json({ 
+            message: "Failed to add meter",
+            error: err.message 
+          });
+        }
+
+        res.status(201).json({
+          message: "Meter added successfully",
+          meter_id: result.insertId,
+        });
+      }
+    );
+  });
 };
 
 /* =========================
@@ -141,19 +216,75 @@ export const updateMeter = (req, res) => {
 export const deleteMeter = (req, res) => {
   const { id } = req.params;
 
-  const sql = "DELETE FROM Meter WHERE meter_id = ?";
-
-  db.query(sql, [id], (err, result) => {
+  db.getConnection((err, connection) => {
     if (err) {
-      console.error("DELETE METER ERROR:", err);
-      return res.status(500).json({ message: "Failed to delete meter" });
+      console.error("GET CONNECTION ERROR:", err);
+      return res.status(500).json({ message: "Failed to start delete transaction" });
     }
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Meter not found" });
-    }
+    connection.beginTransaction((transErr) => {
+      if (transErr) {
+        connection.release();
+        console.error("BEGIN TRANSACTION ERROR:", transErr);
+        return res.status(500).json({ message: "Failed to start delete transaction" });
+      }
 
-    res.status(200).json({ message: "Meter deleted successfully" });
+      // Step 1: Delete all meter readings for this meter
+      const deleteMeterReadingsSql = "DELETE FROM MeterReading WHERE meter_id = ?";
+      connection.query(deleteMeterReadingsSql, [id], (err) => {
+        if (err) {
+          return connection.rollback(() => {
+            connection.release();
+            console.error("DELETE METER READINGS ERROR:", err);
+            res.status(500).json({ message: "Failed to delete meter" });
+          });
+        }
+
+        // Step 2: Delete all bills for this meter
+        const deleteBillsSql = "DELETE FROM Bill WHERE meter_id = ?";
+        connection.query(deleteBillsSql, [id], (err) => {
+          if (err) {
+            return connection.rollback(() => {
+              connection.release();
+              console.error("DELETE BILLS ERROR:", err);
+              res.status(500).json({ message: "Failed to delete meter" });
+            });
+          }
+
+          // Step 3: Delete the meter
+          const deleteMeterSql = "DELETE FROM Meter WHERE meter_id = ?";
+          connection.query(deleteMeterSql, [id], (err, result) => {
+            if (err) {
+              return connection.rollback(() => {
+                connection.release();
+                console.error("DELETE METER ERROR:", err);
+                res.status(500).json({ message: "Failed to delete meter" });
+              });
+            }
+
+            if (result.affectedRows === 0) {
+              return connection.rollback(() => {
+                connection.release();
+                res.status(404).json({ message: "Meter not found" });
+              });
+            }
+
+            connection.commit((commitErr) => {
+              if (commitErr) {
+                return connection.rollback(() => {
+                  connection.release();
+                  console.error("COMMIT ERROR:", commitErr);
+                  res.status(500).json({ message: "Failed to finalize delete" });
+                });
+              }
+
+              connection.release();
+              res.status(200).json({ message: "Meter and all related records deleted successfully" });
+            });
+          });
+        });
+      });
+    });
   });
 };
 

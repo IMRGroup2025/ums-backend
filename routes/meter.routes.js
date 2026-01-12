@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getMeters,
+  getMetersGrouped,
   addMeter,
   updateMeter,
   deleteMeter,
@@ -10,6 +11,7 @@ import {
 const router = express.Router();
 
 router.get("/utilities", getUtilities);
+router.get("/grouped", getMetersGrouped);
 router.get("/", getMeters);
 router.post("/", addMeter);
 router.put("/:id", updateMeter);
